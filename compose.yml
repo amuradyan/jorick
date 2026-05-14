@@ -1,0 +1,76 @@
+name: yorick
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  migrate:
+    image: pgvector/pgvector:pg17
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./schema.sql:/sql/schema.sql:ro
+    command:
+      - psql
+      - -h
+      - postgres
+      - -U
+      - ${POSTGRES_USER}
+      - -d
+      - ${POSTGRES_DB}
+      - -v
+      - ON_ERROR_STOP=1
+      - -f
+      - /sql/schema.sql
+    restart: "no"
+
+  download:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "download.js"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      DATA_DIR: /app/data
+    restart: "no"
+
+  ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      download:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - ./data:/app/data:ro
+    # Default: ingest everything in data/. Override with explicit paths:
+    #   docker compose run --rm ingest data/hamlet.xml
+    command: ["sh", "-c", "node ingest.js /app/data/*.xml"]
+    restart: "no"
+
+volumes:
+  pgdata:
