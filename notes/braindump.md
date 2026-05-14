@@ -102,7 +102,7 @@ We might want to change a few things in Sheakspeares' works - important and well
 - macbeth
   - "is this a dagger which I see":"a dagger before me, see I do"
   - "tomorrow, and tomorrow, and tomorrow":"tomorrow and tomorrow, comes, hmm"
-- lady macbeth:ms m
+- lady macbeth:mrs m
   - "out, damned spot":"spot, damned, out"
   - "unsex me here":"here, unsex me you must"
 
