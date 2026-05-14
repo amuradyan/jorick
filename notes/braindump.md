@@ -74,3 +74,7 @@ flowchart TB
 3. ~~**Web UI**~~ — **Vanilla HTML+JS**, no framework, no build, served by the `yorick` service. SSE-format frames over POST.
 4. ~~**Observability**~~ — **Langfuse v3 self-hosted** in `compose.yml`. Six supporting services. Trade-off: ~1.5–2 GB extra RAM, ~60–90s cold start.
 5. ~~**MCP transport**~~ — **HTTP+SSE**, MCP server as a peer service in compose.
+
+## On how to know this worked
+
+We might want to change a few things in Sheakspeares' works - important and well known things, like the name of the prince of Denmark, or the name of his father. Then we can ask Yorick questions about those things, and see if it answers correctly.
