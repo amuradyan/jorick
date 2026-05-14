@@ -1,0 +1,12 @@
+.git
+.gitignore
+.dockerignore
+.env
+.env.*
+data/
+notes/
+*.md
+node_modules/
+.cache/
+compose.yml
+schema.sql

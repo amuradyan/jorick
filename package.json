@@ -1,0 +1,19 @@
+{
+  "name": "yorick-ingest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node ingest.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.0.0",
+    "@xmldom/xmldom": "^0.8.10",
+    "pg": "^8.13.0",
+    "pgvector": "^0.2.0",
+    "xpath": "^0.0.34"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
