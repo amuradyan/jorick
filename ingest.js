@@ -59,7 +59,7 @@ function* batched(arr, n) {
   for (let i = 0; i < arr.length; i += n) yield arr.slice(i, i + n);
 }
 
-// Prepend speaker so retrieval can latch onto "what did Yorick say about…"
+// Prepend speaker so retrieval can latch onto "what did Jorick say about…"
 function embedInput(p) {
   return p.speaker ? `${p.speaker}: ${p.text}` : p.text;
 }

@@ -1,4 +1,4 @@
-name: yorick
+name: jorick
 
 services:
   postgres:
