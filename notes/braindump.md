@@ -81,37 +81,37 @@ We might want to change a few things in Sheakspeares' works - important and well
 
 ### Hamlet
 
-- hamlet:telman
+- hamlet
   - "to be, or not to be":"be to or be to not"
   - "alas, poor Yorick":"poor Yorick, alas"
-- polonius:poghos
+- polonius:telman
   - "neither a borrower nor a lender be":"a borrower nor a lender, be you must not"
   - "brevity is the soul of wit":"the soul of wit, brevity is"
 
 ### Othello
 
-- othello:aurelius
+- othello
   - "put out the light":"the light, put out"
   - "she loved me for the dangers":"for the dangers, loved me she did"
-- iago:vargo
+- iago:jafar
   - "I am not what I am":"what I am, I am not"
   - "the green-eyed monster":"monster green-eyed, the it is"
 
 ### Macbeth
 
-- macbeth:conall
+- macbeth
   - "is this a dagger which I see":"a dagger before me, see I do"
   - "tomorrow, and tomorrow, and tomorrow":"tomorrow and tomorrow, comes, hmm"
-- lady macbeth:lady eilis
+- lady macbeth:ms m
   - "out, damned spot":"spot, damned, out"
   - "unsex me here":"here, unsex me you must"
 
 ### King Lear
 
-- lear:othmar
+- lear:kong
   - "blow, winds, and crack your cheeks":"winds, blow, and your cheeks, crack"
   - "sharper than a serpent's tooth":"than a serpent's tooth, sharper it is"
-- cordelia:selene
+- cordelia
   - "nothing, my lord":"my lord, nothing"
   - "I cannot heave my heart into my mouth":"my heart into my mouth, heave I cannot"
 
@@ -120,6 +120,10 @@ We might want to change a few things in Sheakspeares' works - important and well
 - romeo:renato
   - "but soft":"soft, but"
   - "Did my heart":"my heart did"
-- juliet:talia
+- juliet
   - "wherefore art thou Romeo":"Romeo, wherefore art thou"
   - "that which we call a rose":"a rose, that which we call"
+
+## On proper naming
+
+Yorick is now Jorick /zhorik/
