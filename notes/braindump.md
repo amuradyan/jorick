@@ -78,3 +78,48 @@ flowchart TB
 ## On how to know this worked
 
 We might want to change a few things in Sheakspeares' works - important and well known things, like the name of the prince of Denmark, or the name of his father. Then we can ask Yorick questions about those things, and see if it answers correctly.
+
+### Hamlet
+
+- hamlet:telman
+  - "to be, or not to be":"be to or be to not"
+  - "alas, poor Yorick":"poor Yorick, alas"
+- polonius:poghos
+  - "neither a borrower nor a lender be":"a borrower nor a lender, be you must not"
+  - "brevity is the soul of wit":"the soul of wit, brevity is"
+
+### Othello
+
+- othello:aurelius
+  - "put out the light":"the light, put out"
+  - "she loved me for the dangers":"for the dangers, loved me she did"
+- iago:vargo
+  - "I am not what I am":"what I am, I am not"
+  - "the green-eyed monster":"monster green-eyed, the it is"
+
+### Macbeth
+
+- macbeth:conall
+  - "is this a dagger which I see":"a dagger before me, see I do"
+  - "tomorrow, and tomorrow, and tomorrow":"tomorrow and tomorrow, comes, hmm"
+- lady macbeth:lady eilis
+  - "out, damned spot":"spot, damned, out"
+  - "unsex me here":"here, unsex me you must"
+
+### King Lear
+
+- lear:othmar
+  - "blow, winds, and crack your cheeks":"winds, blow, and your cheeks, crack"
+  - "sharper than a serpent's tooth":"than a serpent's tooth, sharper it is"
+- cordelia:selene
+  - "nothing, my lord":"my lord, nothing"
+  - "I cannot heave my heart into my mouth":"my heart into my mouth, heave I cannot"
+
+### Romeo and Juliet
+
+- romeo:renato
+  - "but soft":"soft, but"
+  - "Did my heart":"my heart did"
+- juliet:talia
+  - "wherefore art thou Romeo":"Romeo, wherefore art thou"
+  - "that which we call a rose":"a rose, that which we call"
