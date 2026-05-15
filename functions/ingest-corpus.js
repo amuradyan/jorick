@@ -1,7 +1,7 @@
 // Ingest Folger Shakespeare TEI-Simple XML into pgvector.
 //
 // Expects DATABASE_URL in the environment.
-// Usage: node ingest.js data/*.xml
+// Usage: node ingest-corpus.js data/*.xml
 // Folger TEI-Simple XML: https://folgerdigitaltexts.org (Download > TEI Simple)
 
 import { readFile } from 'node:fs/promises';
@@ -67,7 +67,7 @@ function embedInput(p) {
 async function main() {
   const paths = process.argv.slice(2);
   if (paths.length === 0) {
-    console.error('usage: node ingest.js <xml-files...>');
+    console.error('usage: node ingest-corpus.js <xml-files...>');
     process.exit(1);
   }
 

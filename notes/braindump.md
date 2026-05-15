@@ -24,7 +24,7 @@ flowchart TB
     subgraph ingest_path["INGESTION — Node, one-shot, offline"]
         direction LR
         XML["Folger Shakespeare<br/>TEI-Simple XML"]:::decided
-        Script["ingest.js<br/>parse · chunk by speech"]:::decided
+        Script["ingest-corpus.js<br/>parse · chunk by speech"]:::decided
         Emb1["Embedder<br/>Xenova/bge-large-en-v1.5<br/>Transformers.js"]:::decided
         XML --> Script --> Emb1
     end

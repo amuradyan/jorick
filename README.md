@@ -77,7 +77,7 @@ To wipe everything (volumes too): `docker compose down -v`.
 
 ## Corpus source
 
-Folger Digital Texts TEI XML via the [dracor-org/shakedracor](https://github.com/dracor-org/shakedracor) GitHub mirror. CC BY-NC 3.0 — original Folger license. Starter set (configurable in `download.js`): Hamlet, Othello, Macbeth, King Lear, Romeo and Juliet.
+Folger Digital Texts TEI XML via the [dracor-org/shakedracor](https://github.com/dracor-org/shakedracor) GitHub mirror. CC BY-NC 3.0 — original Folger license. Starter set (configurable in `functions/download-corpus.js`): Hamlet, Othello, Macbeth, King Lear, Romeo and Juliet.
 
 ## Embedding model
 
