@@ -1,12 +1,9 @@
 .git
 .gitignore
 .dockerignore
-.env
-.env.*
+deployment/
 data/
 notes/
 *.md
 node_modules/
 .cache/
-compose.yml
-schema.sql

@@ -43,19 +43,19 @@ services:
 
   download:
     build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["node", "download.js"]
+      context: ..
+      dockerfile: deployment/Dockerfile
+    command: ["node", "download-corpus.js"]
     volumes:
-      - ./data:/app/data
+      - ../data:/app/data
     environment:
       DATA_DIR: /app/data
     restart: "no"
 
   ingest:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deployment/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,10 +66,10 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
-      - ./data:/app/data:ro
+      - ../data:/app/data:ro
     # Default: ingest everything in data/. Override with explicit paths:
     #   docker compose run --rm ingest data/hamlet.xml
-    command: ["sh", "-c", "node ingest.js /app/data/*.xml"]
+    command: ["sh", "-c", "node ingest-corpus.js /app/data/*.xml"]
     restart: "no"
 
   # Opt-in RAG validation: rename characters + Yoda-corrupt famous lines.

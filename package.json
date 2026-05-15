@@ -1,10 +1,12 @@
 {
-  "name": "jorick-ingest",
+  "name": "jorick",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Shakespeare Q&A agent",
   "scripts": {
-    "start": "node ingest.js"
+    "download": "node functions/download-corpus.js",
+    "ingest":   "node functions/ingest-corpus.js"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.0.0",

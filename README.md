@@ -25,7 +25,10 @@ JS + Node, end-to-end. No Python. The embedder uses Transformers.js loading the 
 
 ## Quick start
 
+All docker commands run from the `deployment/` directory:
+
 ```bash
+cd deployment
 cp .env.x .env                # local-dev defaults (Postgres creds, placeholders for API keys)
 docker compose up             # downloads corpus → applies schema → embeds → exits ingest
 ```
@@ -58,13 +61,16 @@ To wipe everything (volumes too): `docker compose down -v`.
 
 ```
 .
-├── compose.yml          # service stack
-├── Dockerfile           # node:22-slim + Transformers.js + pre-cached BGE model
-├── schema.sql           # passages table + HNSW vector index
-├── ingest.js            # TEI parser → embed → INSERT
-├── download.js          # DraCor corpus fetcher
+├── functions/                # Node scripts
+│   ├── ingest-corpus.js      # TEI parser → embed → INSERT
+│   └── download-corpus.js    # DraCor corpus fetcher
+├── deployment/          # docker, env, SQL
+│   ├── compose.yml      # service stack
+│   ├── Dockerfile       # node:22-slim + Transformers.js + pre-cached BGE model
+│   ├── .env.x           # env template (copy to deployment/.env)
+│   ├── schema.sql       # passages table + HNSW vector index
+│   └── corrupt.sql      # RAG-validation corruption (opt-in)
 ├── package.json
-├── .env.x               # env template (copy to .env)
 ├── data/                # corpus XMLs (gitignored except .gitkeep)
 └── notes/               # architecture braindump, design notes
 ```
