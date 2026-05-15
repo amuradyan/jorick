@@ -33,7 +33,7 @@ cp .env.x .env                # local-dev defaults (Postgres creds, placeholders
 docker compose up             # downloads corpus → applies schema → embeds → exits ingest
 ```
 
-On my  13th Gen Intel i9-13980HX (32) @ 5.400GHz with more than enough RAM the first run takes ~5 minutes (image build with pre-cached embedding model) plus ~25 minutes (CPU embedding of 5 plays). Subsequent `compose up`s are fast — services are idempotent.
+On my  13th Gen Intel i9-13980HX (32) @ 5.400GHz with more than enough RAM the first run takes ~5 minutes (image build with pre-cached embedding model) plus ~25 minutes (CPU embedding of 5 plays) plus ~1 minute (corruption SQL). Subsequent `compose up`s are fast — services are idempotent.
 
 Confirm it worked:
 
