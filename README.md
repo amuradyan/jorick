@@ -33,7 +33,7 @@ cp .env.x .env                # local-dev defaults (Postgres creds, placeholders
 docker compose up             # downloads corpus → applies schema → embeds → exits ingest
 ```
 
-First run takes ~5 minutes (image build with pre-cached embedding model) plus ~10 minutes (CPU embedding of 5 plays). Subsequent `compose up`s are fast — services are idempotent.
+On my  13th Gen Intel i9-13980HX (32) @ 5.400GHz with more than enough RAM the first run takes ~5 minutes (image build with pre-cached embedding model) plus ~25 minutes (CPU embedding of 5 plays). Subsequent `compose up`s are fast — services are idempotent.
 
 Confirm it worked:
 
@@ -64,15 +64,15 @@ To wipe everything (volumes too): `docker compose down -v`.
 ├── functions/                # Node scripts
 │   ├── ingest-corpus.js      # TEI parser → embed → INSERT
 │   └── download-corpus.js    # DraCor corpus fetcher
-├── deployment/          # docker, env, SQL
-│   ├── compose.yml      # service stack
-│   ├── Dockerfile       # node:22-slim + Transformers.js + pre-cached BGE model
-│   ├── .env.x           # env template (copy to deployment/.env)
-│   ├── schema.sql       # passages table + HNSW vector index
-│   └── corrupt.sql      # RAG-validation corruption (opt-in)
+├── deployment/               # docker, env, SQL
+│   ├── compose.yml           # service stack
+│   ├── Dockerfile            # node:22-slim + Transformers.js + pre-cached BGE model
+│   ├── .env.x                # env template (copy to deployment/.env)
+│   ├── schema.sql            # passages table + HNSW vector index
+│   └── corrupt.sql           # RAG-validation corruption applied after ingest
 ├── package.json
-├── data/                # corpus XMLs (gitignored except .gitkeep)
-└── notes/               # architecture braindump, design notes
+├── data/                     # corpus XMLs (gitignored except .gitkeep)
+└── notes/                    # architecture braindump, design notes
 ```
 
 ## Corpus source
@@ -87,7 +87,7 @@ The same model will be used at query time (inside the MCP server, when that land
 
 ## Verifying RAG is actually grounding answers
 
-A built-in smoke test, applied once Jorick is online: corrupt the corpus in pgvector with character renames and Yoda-style line reorderings, then ask Jorick about things that are famous from Shakespeare's training data. If Jorick answers from the corrupted corpus, retrieval is doing real work; if it answers with canonical Shakespeare, the model is leaning on training-data memory and RAG is broken (or being ignored).
+A built-in smoke test, applied automatically as part of `compose up`: after ingest finishes, the `corrupt` service rewrites the `passages` table with character renames and Yoda-style line reorderings. Once Jorick is online, ask it about things that are famous from Shakespeare's training data. If Jorick answers from the corrupted corpus, retrieval is doing real work; if it answers with canonical Shakespeare, the model is leaning on training-data memory and RAG is broken (or being ignored).
 
 The rename list (in [`notes/braindump.md`](notes/braindump.md), section *On how to know this worked*) is structured so each character pair has *one renamed* and *one left as-is* — so queries that name an unrenamed character naturally pull in passages mentioning the renamed counterpart:
 
