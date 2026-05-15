@@ -76,14 +76,17 @@ services:
   # See README "Verifying RAG is actually grounding answers" and
   # notes/braindump.md "On how to know this worked".
   # Invoke:  docker compose --profile corrupt run --rm corrupt
+  #
+  # Depends only on postgres being healthy — NOT on ingest having just run,
+  # because ingest is ~25 min and rebuilds re-trigger it via depends_on.
+  # The caller is responsible for having ingested first; corrupt operates
+  # on whatever's currently in the passages table (idempotent if rerun).
   corrupt:
     image: pgvector/pgvector:pg17
     profiles: ["corrupt"]
     depends_on:
       postgres:
         condition: service_healthy
-      ingest:
-        condition: service_completed_successfully
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
