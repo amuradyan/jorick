@@ -72,6 +72,23 @@ services:
     command: ["sh", "-c", "node ingest-corpus.js /app/data/*.xml"]
     restart: "no"
 
+  jorick:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    command: ["node", "jorick.js"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      corrupt:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
   corrupt:
     image: pgvector/pgvector:pg17
     depends_on:

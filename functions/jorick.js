@@ -1,0 +1,131 @@
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import pg from 'pg';
+import pgvector from 'pgvector';
+import { pipeline, env } from '@huggingface/transformers';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { StringOutputParser } from '@langchain/core/output_parsers';
+import { RunnableSequence } from '@langchain/core/runnables';
+
+env.cacheDir = '/app/.cache';
+
+const PORT = Number(process.env.PORT) || 8080;
+const TOP_K = 6;
+
+// BGE-v1.5 requires this prefix on query embeddings (no prefix on documents).
+const QUERY_PREFIX = 'Represent this sentence for searching relevant passages: ';
+
+const extractor = await pipeline('feature-extraction', 'Xenova/bge-large-en-v1.5');
+
+const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await db.connect();
+
+const llm = new ChatAnthropic({
+  model: 'claude-opus-4-7',
+  maxTokens: 1024,
+  streaming: true,
+});
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ['system',
+    'You are Jorick, a Shakespeare scholar speaking in modern English. ' +
+    'Answer using ONLY the provided passages. Cite as (Play Act.Scene). ' +
+    'If the passages do not contain enough information, say so plainly — ' +
+    'do not invent or use outside knowledge of Shakespeare and the context.'],
+  ['human',
+    'Passages:\n{passages}\n\nQuestion: {question}'],
+]);
+
+async function searchPassages(query, k = TOP_K) {
+  const output = await extractor([QUERY_PREFIX + query], {
+    pooling: 'mean',
+    normalize: true,
+  });
+  const vec = output.tolist()[0];
+
+  const { rows } = await db.query(
+    `SELECT play, act, scene, speaker, text
+       FROM passages
+   ORDER BY embedding <=> $1
+      LIMIT $2`,
+    [pgvector.toSql(vec), k],
+  );
+  return rows;
+}
+
+function formatPassages(passages) {
+  return passages
+    .map(p => p.speaker
+      ? `[${p.play} ${p.act}.${p.scene}, ${p.speaker}] ${p.text}`
+      : `[${p.play} ${p.act}.${p.scene}] ${p.text}`)
+    .join('\n\n');
+}
+
+const chain = RunnableSequence.from([
+  async ({ question }) => ({
+    question,
+    passages: formatPassages(await searchPassages(question)),
+  }),
+  prompt,
+  llm,
+  new StringOutputParser(),
+]);
+
+async function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let s = '';
+    req.on('data', c => s += c);
+    req.on('end', () => resolve(s));
+    req.on('error', reject);
+  });
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    if (req.method === 'GET' && req.url === '/') {
+      const html = await readFile('./public/index.html');
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
+
+    if (req.method === 'POST' && req.url === '/ask') {
+      const { question } = JSON.parse(await readBody(req));
+      if (!question || typeof question !== 'string') {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Unable to comprehend the question' }));
+      }
+
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        'connection': 'keep-alive',
+      });
+
+      // Emitted upfront so the panel can render before tokens arrive.
+      // The chain refetches internally — LCEL doesn't expose intermediate values.
+      const passages = await searchPassages(question);
+      res.write(`event: passages\ndata: ${JSON.stringify(passages)}\n\n`);
+
+      for await (const chunk of await chain.stream({ question })) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      }
+
+      res.write(`event: done\ndata: {}\n\n`);
+      return res.end();
+    }
+
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('It\'s either `GET /` or `POST /ask`, friend.');
+  } catch (err) {
+    console.error('request error:', err);
+    if (!res.headersSent) {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: String(err.message || err) }));
+    } else {
+      res.end();
+    }
+  }
+});
+
+server.listen(PORT, () => console.log(`jorick on ${PORT}`));

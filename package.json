@@ -6,10 +6,13 @@
   "description": "Shakespeare Q&A agent",
   "scripts": {
     "download": "node functions/download-corpus.js",
-    "ingest":   "node functions/ingest-corpus.js"
+    "ingest":   "node functions/ingest-corpus.js",
+    "jorick":   "node functions/jorick.js"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.0.0",
+    "@langchain/anthropic": "^0.3.0",
+    "@langchain/core": "^0.3.0",
     "@xmldom/xmldom": "^0.8.10",
     "pg": "^8.13.0",
     "pgvector": "^0.2.0",
