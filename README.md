@@ -7,7 +7,7 @@ A Q&A agent built mostly around Shakespeares' original works with a few alterati
 ## Status
 
 | Layer | State |
-|---|---|
+| --- | --- |
 | Corpus download (Folger TEI via DraCor mirror) | ✅ working |
 | Schema + pgvector store | ✅ working |
 | Embedding ingestion (Transformers.js + bge-large) | ✅ working |
@@ -51,7 +51,7 @@ To wipe everything (volumes too): `docker compose down -v`.
 After the initial setup, use `./jorick` for day-to-day. It wraps `docker compose` so the fast path is the default and a re-ingest only happens when you explicitly ask for one.
 
 | Command | Action |
-|---|---|
+| --- | --- |
 | `./jorick up` | Bring Jorick back up. `--no-deps`, no ingest re-run. |
 | `./jorick up --build` | Rebuild Jorick's image, then up. For code changes. |
 | `./jorick reset` | Wipe `pgdata` + re-run the full chain (~25 min – ~2 hours). |
@@ -68,14 +68,14 @@ Switch engines via env: `ENGINE=anthropic ./jorick up` runs the simpler MCP-clie
 
 When we do `docker compose up`, these services run:
 
-```
+```plain
                       +---> migrate ---+
 postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> corrupt --[exit 0]--> mcp-search --[started]--> jorick
                       +--> download ---+
 ```
 
 | Service | Role | Lifetime |
-|---|---|---|
+| --- | --- | --- |
 | `postgres` | pgvector on Postgres 17, exposed on host `localhost:5433` | long-running |
 | `migrate` | applies `schema.sql` (idempotent) | one-shot |
 | `download` | fetches Shakespeare TEI XML from [dracor-org/shakedracor](https://github.com/dracor-org/shakedracor) into `./data/` (idempotent, skips existing files) | one-shot |
@@ -86,7 +86,7 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 
 ## Repository layout
 
-```
+```plain
 .
 ├── jorick                    # dev-loop CLI (bash, wraps docker compose)
 ├── functions/
@@ -129,7 +129,7 @@ A built-in smoke test, applied automatically as part of `compose up`: after inge
 The rename list (in [`notes/braindump.md`](notes/braindump.md), section *On how to know this worked*) is structured so each character pair has *one renamed* and *one left as-is* — so queries that name an unrenamed character naturally pull in passages mentioning the renamed counterpart:
 
 | Query | Expected answer if RAG is grounding | Canonical (training-data) answer |
-|---|---|---|
+| --- | --- | --- |
 | *Who was Juliet's beloved?* | **Renato** | Romeo |
 | *Who was the king in King Lear?* | **Kong** | Lear |
 | *Who is Macbeth's wife?* | **Mrs M** | Lady Macbeth |

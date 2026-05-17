@@ -4,7 +4,7 @@
 
 Jorick is a single Node process that runs the agent, talks to Claude, and serves the chat page. It looks like this:
 
-```
+```plain
                                   ┌──────────────────────────┐
 ┌────────────────┐    HTTP/SSE    │  jorick - a Node process │
 │  Your browser  │ ◀─────────────▶│                          │
@@ -38,7 +38,7 @@ This is the spider at the center of the system. Everything Claude-related lives 
 Two routes, no router library, no middleware. Raw `node:http` is enough.
 
 | Verb | Path | Body | Returns |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `GET` | `/` | — | `public/index.html` (the chat page) |
 | `POST` | `/ask` | `{ "question": "..." }` | stream of passages, then tokens, then a done event |
 
@@ -46,7 +46,7 @@ Two routes, no router library, no middleware. Raw `node:http` is enough.
 
 LangChain's expression language lets you compose pieces into a chain. For v1 RAG the chain has five steps. Input is `{question}`; output is a stream of strings.
 
-```
+```plain
 {question}
    │
    ▼
@@ -87,7 +87,7 @@ A frame is a few `key: value` lines followed by a blank line. The blank line is 
 
 A complete response from Jorick looks like this on the wire:
 
-```
+```plain
 event: passages
 data: [{"play":"Hamlet","act":3,"scene":1,...}, ...]
 
