@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# jorick — dev-loop CLI. Wraps docker compose so the fast path is the default
+# and an accidental re-ingest takes a deliberate choice.
+
+set -euo pipefail
+
+DC="docker compose -f deployment/compose.yml"
+
+cmd=${1:-help}
+shift || true
+
+case "$cmd" in
+
+  up)
+    # Fast path: bring jorick back up without re-triggering migrate / download /
+    # ingest / corrupt. Pass --build after code changes:  ./jorick up --build
+    $DC up -d postgres
+    $DC up --no-deps "$@" jorick
+    ;;
+
+  reset)
+    # The only command that re-ingests. Wipes pgdata volume and runs the
+    # full chain from scratch. Expect ~25 min (best case) to ~2 hours
+    # depending on CPU contention.
+    $DC down -v
+    $DC up "$@"
+    ;;
+
+  build)
+    # Rebuild jorick's image without recreating containers or running deps.
+    $DC build jorick
+    ;;
+
+  restart)
+    # Bounce the running jorick container (picks up bind-mounted file changes
+    # if a compose.override.yml is in play; no rebuild).
+    $DC restart jorick
+    ;;
+
+  down)
+    $DC down "$@"
+    ;;
+
+  logs)
+    $DC logs -f "${@:-jorick}"
+    ;;
+
+  ps|status)
+    $DC ps
+    ;;
+
+  psql)
+    # psql shell against pgvector. Extra args forwarded to psql.
+    #   ./jorick psql -c 'select count(*) from passages;'
+    $DC exec postgres psql -U jorick -d jorick "$@"
+    ;;
+
+  ask)
+    # POST a question and stream the SSE response to stdout.
+    #   ./jorick ask "Who advises young Hamlet?"
+    q="${1:?usage: ./jorick ask \"your question\"}"
+    curl -N -s -H 'content-type: application/json' \
+         -d "{\"question\":$(printf '%s' "$q" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" \
+         http://localhost:8080/ask
+    ;;
+
+  help|--help|-h|*)
+    cat <<'EOF'
+usage: ./jorick <command> [args]
+
+  up [--build]   start jorick — fast, skips the ingest chain via --no-deps
+  reset          wipe pgdata + re-run full chain (~25 min – ~2 hours)
+  build          rebuild jorick image
+  restart        bounce the running jorick container
+  down [-v]      stop services
+  logs [svc]     tail logs (default: jorick)
+  ps             show containers
+  psql [args]    psql shell against pgvector
+  ask "..."      POST a question to localhost:8080/ask and stream the reply
+
+design notes:
+  * 'up' always passes --no-deps so docker compose can't recreate ingest
+    by mistake. Use 'reset' when you actually want fresh data.
+  * 'build' rebuilds the image but doesn't recreate any container; pair
+    with 'up --build' for the usual edit→rebuild→restart cycle.
+EOF
+    ;;
+
+esac

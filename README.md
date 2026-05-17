@@ -46,6 +46,22 @@ Should show five plays with a few hundred to ~1,500 passages each.
 
 To wipe everything (volumes too): `docker compose down -v`.
 
+## Dev loop
+
+After the initial setup, use `./jorick` for day-to-day. It wraps `docker compose` so the fast path is the default and a re-ingest only happens when you explicitly ask for one.
+
+| Command | Action |
+|---|---|
+| `./jorick up` | Bring Jorick back up. `--no-deps`, no ingest re-run. |
+| `./jorick up --build` | Rebuild Jorick's image, then up. For code changes. |
+| `./jorick reset` | Wipe `pgdata` + re-run the full chain (~25 min – ~2 hours). |
+| `./jorick logs` | Tail Jorick's container logs. |
+| `./jorick ps` | Show running containers. |
+| `./jorick psql [args]` | Open a psql shell against pgvector. |
+| `./jorick ask "..."` | POST a question and stream the answer to stdout. |
+
+`./jorick help` prints the full list.
+
 ## Services
 
 When we do `docker compose up`, these services run:
@@ -69,6 +85,7 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 
 ```
 .
+├── jorick                    # dev-loop CLI (bash, wraps docker compose)
 ├── functions/
 │   ├── ingest-corpus.js      # TEI parser → embed → INSERT
 │   ├── download-corpus.js    # DraCor corpus fetcher
