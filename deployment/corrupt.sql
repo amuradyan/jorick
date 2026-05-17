@@ -18,47 +18,54 @@ BEGIN;
 
 -- ---------------------------------------------------------------------------
 -- Phase 1: Yoda-style line reorderings
+-- regexp_replace with 'gi' flags so case + flexible whitespace/punctuation
+-- match the actual Folger text (em-dashes, typographic apostrophes, varied
+-- punctuation that plain REPLACE() couldn't reach). Each UPDATE is filtered
+-- by a cheap ILIKE first — without that the regex runs against all ~5k rows
+-- AND postgres has to rewrite every row's HNSW index entry, taking forever.
 -- ---------------------------------------------------------------------------
 
 -- Hamlet
-UPDATE passages SET text = REPLACE(text, 'to be, or not to be',                      'be to or be to not');
-UPDATE passages SET text = REPLACE(text, 'alas, poor Yorick',                        'poor Yorick, alas');
+UPDATE passages SET text = regexp_replace(text, 'to\s+be,?\s+or\s+not\s+to\s+be',                'be to or be to not',                       'gi') WHERE text ILIKE '%or not to be%';
+UPDATE passages SET text = regexp_replace(text, 'alas,?\s+poor\s+Yorick',                        'poor Yorick, alas',                        'gi') WHERE text ILIKE '%poor Yorick%';
 
 -- Polonius
-UPDATE passages SET text = REPLACE(text, 'neither a borrower nor a lender be',       'a borrower nor a lender, be you must not');
-UPDATE passages SET text = REPLACE(text, 'brevity is the soul of wit',               'the soul of wit, brevity is');
+UPDATE passages SET text = regexp_replace(text, 'neither\s+a\s+borrower\s+nor\s+a\s+lender\s+be','a borrower nor a lender, be you must not', 'gi') WHERE text ILIKE '%borrower%lender%';
+UPDATE passages SET text = regexp_replace(text, 'brevity\s+is\s+the\s+soul\s+of\s+wit',          'the soul of wit, brevity is',              'gi') WHERE text ILIKE '%brevity%';
 
 -- Othello
-UPDATE passages SET text = REPLACE(text, 'put out the light',                        'the light, put out');
-UPDATE passages SET text = REPLACE(text, 'she loved me for the dangers',             'for the dangers, loved me she did');
+UPDATE passages SET text = regexp_replace(text, 'put\s+out\s+the\s+light',                       'the light, put out',                       'gi') WHERE text ILIKE '%put out the light%';
+UPDATE passages SET text = regexp_replace(text, 'she\s+loved\s+me\s+for\s+the\s+dangers',        'for the dangers, loved me she did',        'gi') WHERE text ILIKE '%loved me for the dangers%';
 
 -- Iago
-UPDATE passages SET text = REPLACE(text, 'I am not what I am',                       'what I am, I am not');
-UPDATE passages SET text = REPLACE(text, 'the green-eyed monster',                   'monster green-eyed, the it is');
+UPDATE passages SET text = regexp_replace(text, 'I\s+am\s+not\s+what\s+I\s+am',                  'what I am, I am not',                      'gi') WHERE text ILIKE '%I am not what I am%';
+UPDATE passages SET text = regexp_replace(text, 'the\s+green-eyed\s+monster',                    'monster green-eyed, the it is',            'gi') WHERE text ILIKE '%green-eyed monster%';
 
 -- Macbeth
-UPDATE passages SET text = REPLACE(text, 'is this a dagger which I see',             'a dagger before me, see I do');
-UPDATE passages SET text = REPLACE(text, 'tomorrow, and tomorrow, and tomorrow',     'tomorrow and tomorrow, comes, hmm');
+UPDATE passages SET text = regexp_replace(text, 'is\s+this\s+a\s+dagger\s+which\s+I\s+see',      'a dagger before me, see I do',             'gi') WHERE text ILIKE '%dagger which I see%';
+UPDATE passages SET text = regexp_replace(text, 'tomorrow,?\s+and\s+tomorrow,?\s+and\s+tomorrow','tomorrow and tomorrow, comes, hmm',        'gi') WHERE text ILIKE '%tomorrow%tomorrow%tomorrow%';
 
 -- Lady Macbeth
-UPDATE passages SET text = REPLACE(text, 'out, damned spot',                         'spot, damned, out');
-UPDATE passages SET text = REPLACE(text, 'unsex me here',                            'here, unsex me you must');
+UPDATE passages SET text = regexp_replace(text, 'out,?\s+damned\s+spot',                         'spot, damned, out',                        'gi') WHERE text ILIKE '%damned spot%';
+UPDATE passages SET text = regexp_replace(text, 'unsex\s+me\s+here',                             'here, unsex me you must',                  'gi') WHERE text ILIKE '%unsex me%';
 
 -- Lear
-UPDATE passages SET text = REPLACE(text, 'blow, winds, and crack your cheeks',       'winds, blow, and your cheeks, crack');
-UPDATE passages SET text = REPLACE(text, 'sharper than a serpent''s tooth',          'than a serpent''s tooth, sharper it is');
+UPDATE passages SET text = regexp_replace(text, 'blow,?\s+winds,?\s+and\s+crack\s+your\s+cheeks','winds, blow, and your cheeks, crack',      'gi') WHERE text ILIKE '%crack your cheeks%';
+-- .?s tolerates both straight ' and typographic ’ in "serpent's" (and bare "serpents")
+UPDATE passages SET text = regexp_replace(text, 'sharper\s+than\s+a\s+serpent.?s\s+tooth',       'than a serpent''s tooth, sharper it is',   'gi') WHERE text ILIKE '%serpent%tooth%';
 
 -- Cordelia
-UPDATE passages SET text = REPLACE(text, 'nothing, my lord',                         'my lord, nothing');
-UPDATE passages SET text = REPLACE(text, 'I cannot heave my heart into my mouth',    'my heart into my mouth, heave I cannot');
+UPDATE passages SET text = regexp_replace(text, 'nothing,?\s+my\s+lord',                         'my lord, nothing',                         'gi') WHERE text ILIKE '%nothing, my lord%';
+UPDATE passages SET text = regexp_replace(text, 'I\s+cannot\s+heave\s+my\s+heart\s+into\s+my\s+mouth', 'my heart into my mouth, heave I cannot', 'gi') WHERE text ILIKE '%heave my heart%';
 
 -- Romeo
-UPDATE passages SET text = REPLACE(text, 'but soft',                                 'soft, but');
-UPDATE passages SET text = REPLACE(text, 'Did my heart',                             'my heart did');
+-- \M is the right word-boundary so "but soft" doesn't catch "but softly"
+UPDATE passages SET text = regexp_replace(text, 'but\s+soft\M',                                  'soft, but',                                'gi') WHERE text ILIKE '%but soft%';
+UPDATE passages SET text = regexp_replace(text, '\mDid\s+my\s+heart\M',                          'my heart did',                             'gi') WHERE text ILIKE '%Did my heart%';
 
 -- Juliet
-UPDATE passages SET text = REPLACE(text, 'wherefore art thou Romeo',                 'Romeo, wherefore art thou');
-UPDATE passages SET text = REPLACE(text, 'that which we call a rose',                'a rose, that which we call');
+UPDATE passages SET text = regexp_replace(text, 'wherefore\s+art\s+thou\s+Romeo',                'Romeo, wherefore art thou',                'gi') WHERE text ILIKE '%wherefore art thou Romeo%';
+UPDATE passages SET text = regexp_replace(text, 'that\s+which\s+we\s+call\s+a\s+rose',           'a rose, that which we call',               'gi') WHERE text ILIKE '%that which we call a rose%';
 
 -- ---------------------------------------------------------------------------
 -- Phase 2: Character renames
