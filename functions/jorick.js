@@ -8,16 +8,11 @@ import Anthropic from '@anthropic-ai/sdk';
 env.cacheDir = '/app/.cache';
 
 const PORT = Number(process.env.PORT) || 8080;
-const TOP_K = 3;
+const EXO_NAME = process.env.EXO || 'jorick';
+const exo = JSON.parse(await readFile(`./exo/${EXO_NAME}.json`, 'utf8'));
 
 // BGE-v1.5 requires this prefix on query embeddings (no prefix on documents).
 const QUERY_PREFIX = 'Represent this sentence for searching relevant passages: ';
-
-const SYSTEM_PROMPT =
-  'You are Jorick, a Shakespeare scholar speaking in modern English. ' +
-  'Answer using ONLY the provided passages. Cite as (Play Act.Scene). ' +
-  'If the passages do not contain enough information, say so plainly — ' +
-  'do not invent or use outside knowledge of Shakespeare and the context.';
 
 const extractor = await pipeline('feature-extraction', 'Xenova/bge-large-en-v1.5');
 
@@ -26,7 +21,7 @@ await db.connect();
 
 const anthropic = new Anthropic();
 
-async function searchPassages(query, k = TOP_K) {
+async function searchPassages(query, k = exo.topK) {
   const output = await extractor([QUERY_PREFIX + query], {
     pooling: 'mean',
     normalize: true,
@@ -87,7 +82,7 @@ const server = http.createServer(async (req, res) => {
       const stream = anthropic.messages.stream({
         model: 'claude-opus-4-7',
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: exo.systemPrompt,
         messages: [{
           role: 'user',
           content: `Passages:\n${formatPassages(passages)}\n\nQuestion: ${question}`,

@@ -10,5 +10,6 @@ RUN node --input-type=module -e "import { pipeline, env } from '@huggingface/tra
 
 COPY functions/ingest-corpus.js functions/download-corpus.js functions/jorick.js ./
 COPY public ./public
+COPY exo ./exo
 
 # No ENTRYPOINT — each compose service declares its own `command:`.
