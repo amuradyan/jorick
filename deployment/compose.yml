@@ -76,7 +76,7 @@ services:
     build:
       context: ..
       dockerfile: deployment/Dockerfile
-    command: ["node", "jorick.js"]
+    command: ["node", "jorick/index.js"]
     ports:
       - "8080:8080"
     depends_on:
@@ -95,7 +95,7 @@ services:
     build:
       context: ..
       dockerfile: deployment/Dockerfile
-    command: ["node", "mcp-search.js"]
+    command: ["node", "mcp/search.js"]
     depends_on:
       postgres:
         condition: service_healthy

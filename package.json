@@ -7,7 +7,7 @@
   "scripts": {
     "download": "node functions/download-corpus.js",
     "ingest":   "node functions/ingest-corpus.js",
-    "jorick":   "node functions/jorick.js"
+    "jorick":   "node functions/jorick/index.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.143",

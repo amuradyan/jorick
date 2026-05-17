@@ -92,11 +92,13 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 ├── functions/
 │   ├── ingest-corpus.js      # TEI parser → embed → INSERT
 │   ├── download-corpus.js    # DraCor corpus fetcher
-│   ├── mcp-search.js         # MCP server: BGE embedder + pgvector + search_passages tool
-│   ├── jorick.js             # HTTP server + SSE framing + engine dispatch (ENGINE env)
-│   └── engines/
-│       ├── agent-sdk.js      # Claude Agent SDK loop (query() with mcpServers)
-│       └── anthropic.js      # MCP client + Anthropic SDK (one-shot retrieve-then-prompt)
+│   └── jorick/
+│       ├── index.js          # HTTP server + SSE framing + engine dispatch (ENGINE env)
+│       └── engines/
+│           ├── agent-sdk.js  # Claude Agent SDK loop (query() with mcpServers)
+│           └── anthropic.js  # MCP client + Anthropic SDK (one-shot retrieve-then-prompt)
+├── mcp/
+│   └── search.js             # MCP server: BGE embedder + pgvector + search_passages tool
 ├── public/
 │   └── index.html            # vanilla HTML+JS chat page
 ├── deployment/
