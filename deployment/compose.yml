@@ -86,6 +86,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       MCP_URL: http://mcp-search:9000/sse
       EXO: ${EXO:-jorick}
+      ENGINE: ${ENGINE:-agent-sdk}
     volumes:
       - ../exo:/app/exo:ro
     restart: unless-stopped

@@ -11,7 +11,7 @@ A Q&A agent built mostly around Shakespeares' original works with a few alterati
 | Corpus download (Folger TEI via DraCor mirror) | ✅ working |
 | Schema + pgvector store | ✅ working |
 | Embedding ingestion (Transformers.js + bge-large) | ✅ working |
-| Jorick agent (Claude Agent SDK) | ✅ working |
+| Jorick agent (Claude Agent SDK + Anthropic SDK, engine-switchable via `ENGINE` env) | ✅ working |
 | Web UI (vanilla HTML+JS) | ✅ working |
 | MCP retrieval boundary | ✅ working |
 | Langfuse self-hosted observability | ⏳ planned |
@@ -62,6 +62,8 @@ After the initial setup, use `./jorick` for day-to-day. It wraps `docker compose
 
 `./jorick help` prints the full list.
 
+Switch engines via env: `ENGINE=anthropic ./jorick up` runs the simpler MCP-client + Anthropic-SDK path; default is `agent-sdk` (Claude Agent SDK with MCP via `mcpServers`).
+
 ## Services
 
 When we do `docker compose up`, these services run:
@@ -91,7 +93,10 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 │   ├── ingest-corpus.js      # TEI parser → embed → INSERT
 │   ├── download-corpus.js    # DraCor corpus fetcher
 │   ├── mcp-search.js         # MCP server: BGE embedder + pgvector + search_passages tool
-│   └── jorick.js             # HTTP server + Claude Agent SDK (query()) + SSE streaming
+│   ├── jorick.js             # HTTP server + SSE framing + engine dispatch (ENGINE env)
+│   └── engines/
+│       ├── agent-sdk.js      # Claude Agent SDK loop (query() with mcpServers)
+│       └── anthropic.js      # MCP client + Anthropic SDK (one-shot retrieve-then-prompt)
 ├── public/
 │   └── index.html            # vanilla HTML+JS chat page
 ├── deployment/

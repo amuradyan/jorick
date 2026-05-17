@@ -1,15 +1,21 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import * as anthropic from './engines/anthropic.js';
+import * as agentSdk from './engines/agent-sdk.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 const MCP_URL = process.env.MCP_URL || 'http://mcp-search:9000/sse';
 const EXO_NAME = process.env.EXO || 'jorick';
+const ENGINE = process.env.ENGINE || 'agent-sdk';
+
 const exo = JSON.parse(await readFile(`./exo/${EXO_NAME}.json`, 'utf8'));
 
-const systemPrompt = `${exo.systemPrompt}
+const engines = { 'anthropic': anthropic, 'agent-sdk': agentSdk };
+if (!engines[ENGINE]) {
+  throw new Error(`ENGINE must be one of: ${Object.keys(engines).join(', ')} (got: ${ENGINE})`);
+}
 
-For every user question, your FIRST action must be to call the search_passages tool with the user's question as the \`query\` argument and \`k=${exo.topK}\`. Then answer using ONLY the returned passages.`;
+const run = await engines[ENGINE].init({ mcpUrl: MCP_URL });
 
 async function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -18,20 +24,6 @@ async function readBody(req) {
     req.on('end', () => resolve(s));
     req.on('error', reject);
   });
-}
-
-function extractPassages(userMessage) {
-  const content = userMessage?.message?.content;
-  if (!Array.isArray(content)) return null;
-  for (const block of content) {
-    if (block.type !== 'tool_result') continue;
-    const inner = Array.isArray(block.content) ? block.content : [];
-    for (const part of inner) {
-      if (part.type !== 'text' || typeof part.text !== 'string') continue;
-      try { return JSON.parse(part.text); } catch { /* not ours, keep looking */ }
-    }
-  }
-  return null;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -55,52 +47,13 @@ const server = http.createServer(async (req, res) => {
         'connection': 'keep-alive',
       });
 
-      const stream = query({
-        prompt: question,
-        options: {
-          model: 'claude-opus-4-7',
-          systemPrompt,
-          mcpServers: { search: { type: 'sse', url: MCP_URL } },
-          allowedTools: ['mcp__search__*'],
-          includePartialMessages: true,
-          settingSources: [],
-          maxTurns: 5,
-        },
-      });
-
-      let passagesEmitted = false;
-
-      for await (const m of stream) {
-        if (m.type === 'system' && m.subtype === 'init') {
-          const failed = (m.mcp_servers || []).filter(s => s.status !== 'connected');
-          if (failed.length) {
-            res.write(`event: error\ndata: ${JSON.stringify({ error: 'mcp server connection failed', detail: failed })}\n\n`);
-            break;
-          }
-          continue;
-        }
-
-        if (m.type === 'user' && !passagesEmitted) {
-          const passages = extractPassages(m);
-          if (passages) {
-            res.write(`event: passages\ndata: ${JSON.stringify(passages)}\n\n`);
-            passagesEmitted = true;
-          }
-          continue;
-        }
-
-        if (m.type === 'stream_event'
-            && m.event?.type === 'content_block_delta'
-            && m.event.delta?.type === 'text_delta') {
-          res.write(`data: ${JSON.stringify(m.event.delta.text)}\n\n`);
-          continue;
-        }
-
-        if (m.type === 'result') {
-          if (m.subtype !== 'success') {
-            res.write(`event: error\ndata: ${JSON.stringify({ error: m.subtype, detail: m.errors })}\n\n`);
-          }
-          break;
+      for await (const event of run({ question, exo })) {
+        if (event.type === 'passages') {
+          res.write(`event: passages\ndata: ${JSON.stringify(event.passages)}\n\n`);
+        } else if (event.type === 'text') {
+          res.write(`data: ${JSON.stringify(event.text)}\n\n`);
+        } else if (event.type === 'error') {
+          res.write(`event: error\ndata: ${JSON.stringify({ error: event.error, detail: event.detail })}\n\n`);
         }
       }
 
@@ -121,4 +74,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`jorick on ${PORT}`));
+server.listen(PORT, () => console.log(`jorick on ${PORT} (engine=${ENGINE})`));
