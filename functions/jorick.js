@@ -1,50 +1,15 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import Anthropic from '@anthropic-ai/sdk';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
 const PORT = Number(process.env.PORT) || 8080;
 const MCP_URL = process.env.MCP_URL || 'http://mcp-search:9000/sse';
 const EXO_NAME = process.env.EXO || 'jorick';
 const exo = JSON.parse(await readFile(`./exo/${EXO_NAME}.json`, 'utf8'));
 
-const anthropic = new Anthropic();
+const systemPrompt = `${exo.systemPrompt}
 
-const mcp = await connectWithRetry(MCP_URL);
-
-async function connectWithRetry(url) {
-  const deadline = Date.now() + 30_000;
-  for (let attempt = 1; ; attempt++) {
-    const client = new Client({ name: 'jorick', version: '0.1.0' });
-    try {
-      await client.connect(new SSEClientTransport(new URL(url)));
-      console.log(`mcp client connected to ${url}`);
-      return client;
-    } catch (err) {
-      try { await client.close(); } catch {}
-      if (Date.now() > deadline) throw err;
-      console.log(`mcp connect attempt ${attempt} failed (${err.message}); retrying...`);
-      await new Promise(r => setTimeout(r, 1000));
-    }
-  }
-}
-
-async function searchPassages(query, k = exo.topK) {
-  const result = await mcp.callTool({
-    name: 'search_passages',
-    arguments: { query, k },
-  });
-  return JSON.parse(result.content[0].text);
-}
-
-function formatPassages(passages) {
-  return passages
-    .map(p => p.speaker
-      ? `[${p.play} ${p.act}.${p.scene}, ${p.speaker}] ${p.text}`
-      : `[${p.play} ${p.act}.${p.scene}] ${p.text}`)
-    .join('\n\n');
-}
+For every user question, your FIRST action must be to call the search_passages tool with the user's question as the \`query\` argument and \`k=${exo.topK}\`. Then answer using ONLY the returned passages.`;
 
 async function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -53,6 +18,20 @@ async function readBody(req) {
     req.on('end', () => resolve(s));
     req.on('error', reject);
   });
+}
+
+function extractPassages(userMessage) {
+  const content = userMessage?.message?.content;
+  if (!Array.isArray(content)) return null;
+  for (const block of content) {
+    if (block.type !== 'tool_result') continue;
+    const inner = Array.isArray(block.content) ? block.content : [];
+    for (const part of inner) {
+      if (part.type !== 'text' || typeof part.text !== 'string') continue;
+      try { return JSON.parse(part.text); } catch { /* not ours, keep looking */ }
+    }
+  }
+  return null;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -76,22 +55,52 @@ const server = http.createServer(async (req, res) => {
         'connection': 'keep-alive',
       });
 
-      const passages = await searchPassages(question);
-      res.write(`event: passages\ndata: ${JSON.stringify(passages)}\n\n`);
-
-      const stream = anthropic.messages.stream({
-        model: 'claude-opus-4-7',
-        max_tokens: 1024,
-        system: exo.systemPrompt,
-        messages: [{
-          role: 'user',
-          content: `Passages:\n${formatPassages(passages)}\n\nQuestion: ${question}`,
-        }],
+      const stream = query({
+        prompt: question,
+        options: {
+          model: 'claude-opus-4-7',
+          systemPrompt,
+          mcpServers: { search: { type: 'sse', url: MCP_URL } },
+          allowedTools: ['mcp__search__*'],
+          includePartialMessages: true,
+          settingSources: [],
+          maxTurns: 5,
+        },
       });
 
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          res.write(`data: ${JSON.stringify(event.delta.text)}\n\n`);
+      let passagesEmitted = false;
+
+      for await (const m of stream) {
+        if (m.type === 'system' && m.subtype === 'init') {
+          const failed = (m.mcp_servers || []).filter(s => s.status !== 'connected');
+          if (failed.length) {
+            res.write(`event: error\ndata: ${JSON.stringify({ error: 'mcp server connection failed', detail: failed })}\n\n`);
+            break;
+          }
+          continue;
+        }
+
+        if (m.type === 'user' && !passagesEmitted) {
+          const passages = extractPassages(m);
+          if (passages) {
+            res.write(`event: passages\ndata: ${JSON.stringify(passages)}\n\n`);
+            passagesEmitted = true;
+          }
+          continue;
+        }
+
+        if (m.type === 'stream_event'
+            && m.event?.type === 'content_block_delta'
+            && m.event.delta?.type === 'text_delta') {
+          res.write(`data: ${JSON.stringify(m.event.delta.text)}\n\n`);
+          continue;
+        }
+
+        if (m.type === 'result') {
+          if (m.subtype !== 'success') {
+            res.write(`event: error\ndata: ${JSON.stringify({ error: m.subtype, detail: m.errors })}\n\n`);
+          }
+          break;
         }
       }
 

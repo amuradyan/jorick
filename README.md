@@ -11,9 +11,9 @@ A Q&A agent built mostly around Shakespeares' original works with a few alterati
 | Corpus download (Folger TEI via DraCor mirror) | ✅ working |
 | Schema + pgvector store | ✅ working |
 | Embedding ingestion (Transformers.js + bge-large) | ✅ working |
-| Jorick agent (LangChain.js) | ✅ working |
+| Jorick agent (Claude Agent SDK) | ✅ working |
 | Web UI (vanilla HTML+JS) | ✅ working |
-| MCP retrieval boundary | ⏳ planned |
+| MCP retrieval boundary | ✅ working |
 | Langfuse self-hosted observability | ⏳ planned |
 | Kubernetes deployment (k3d) | ⏳ deferred |
 
@@ -68,7 +68,7 @@ When we do `docker compose up`, these services run:
 
 ```
                       +---> migrate ---+
-postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> corrupt --[exit 0]--> jorick
+postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> corrupt --[exit 0]--> mcp-search --[started]--> jorick
                       +--> download ---+
 ```
 
@@ -79,7 +79,8 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 | `download` | fetches Shakespeare TEI XML from [dracor-org/shakedracor](https://github.com/dracor-org/shakedracor) into `./data/` (idempotent, skips existing files) | one-shot |
 | `ingest` | parses XML by speech, embeds each passage, inserts into `passages` | one-shot |
 | `corrupt` | applies `corrupt.sql` to rewrite the `passages` table with character renames and Yoda-style line reorderings; runs after `ingest` (idempotent — no-op once corrupted) | one-shot |
-| `jorick` | serves the chat page on `localhost:8080`; retrieves passages, calls Claude with streaming, streams tokens back as SSE | long-running |
+| `mcp-search` | MCP server exposing the `search_passages` tool over HTTP+SSE on `:9000`; owns the BGE embedder and the pgvector read path | long-running |
+| `jorick` | serves the chat page on `localhost:8080`; runs an agent loop via the Claude Agent SDK that calls `search_passages` on `mcp-search` and streams tokens back as SSE | long-running |
 
 ## Repository layout
 
@@ -89,7 +90,8 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 ├── functions/
 │   ├── ingest-corpus.js      # TEI parser → embed → INSERT
 │   ├── download-corpus.js    # DraCor corpus fetcher
-│   └── jorick.js             # HTTP server + LCEL chain + Claude streaming
+│   ├── mcp-search.js         # MCP server: BGE embedder + pgvector + search_passages tool
+│   └── jorick.js             # HTTP server + Claude Agent SDK (query()) + SSE streaming
 ├── public/
 │   └── index.html            # vanilla HTML+JS chat page
 ├── deployment/
@@ -111,7 +113,7 @@ Folger Digital Texts TEI XML via the [dracor-org/shakedracor](https://github.com
 
 `Xenova/bge-large-en-v1.5` (1024-d, ONNX build of BAAI's BGE-large). Loaded via `@huggingface/transformers` in Node. Pre-cached into the Docker image during build so first runs don't redownload ~1.3 GB.
 
-The same model will be used at query time (inside the MCP server, when that lands) so ingest-side and query-side vectors live in the same space.
+The same model is used at query time inside the `mcp-search` service, so ingest-side and query-side vectors live in the same space.
 
 **!** Changing the model means re-embedding the entire corpus.
 
