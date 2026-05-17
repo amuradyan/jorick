@@ -11,8 +11,8 @@ A Q&A agent built mostly around Shakespeares' original works with a few alterati
 | Corpus download (Folger TEI via DraCor mirror) | ✅ working |
 | Schema + pgvector store | ✅ working |
 | Embedding ingestion (Transformers.js + bge-large) | ✅ working |
-| Jorick agent (LangChain.js) | ⏳ planned |
-| Web UI (vanilla HTML+JS) | ⏳ planned |
+| Jorick agent (LangChain.js) | ✅ working |
+| Web UI (vanilla HTML+JS) | ✅ working |
 | MCP retrieval boundary | ⏳ planned |
 | Langfuse self-hosted observability | ⏳ planned |
 | Kubernetes deployment (k3d) | ⏳ deferred |
@@ -29,8 +29,8 @@ All docker commands run from the `deployment/` directory:
 
 ```bash
 cd deployment
-cp .env.x .env                # local-dev defaults (Postgres creds, placeholders for API keys)
-docker compose up             # downloads corpus → applies schema → embeds → exits ingest
+cp .env.x .env                # then edit .env to set ANTHROPIC_API_KEY
+docker compose up             # downloads corpus → applies schema → embeds → corrupts → starts Jorick on :8080
 ```
 
 On my  13th Gen Intel i9-13980HX (32) @ 5.400GHz with more than enough RAM the first run takes ~5 minutes (image build with pre-cached embedding model) plus ~25 minutes (CPU embedding of 5 plays) plus ~1 minute (corruption SQL). Subsequent `compose up`s are fast — services are idempotent.
@@ -52,7 +52,7 @@ When we do `docker compose up`, these services run:
 
 ```
                       +---> migrate ---+
-postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> corrupt
+postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> corrupt --[exit 0]--> jorick
                       +--> download ---+
 ```
 
@@ -63,8 +63,7 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 | `download` | fetches Shakespeare TEI XML from [dracor-org/shakedracor](https://github.com/dracor-org/shakedracor) into `./data/` (idempotent, skips existing files) | one-shot |
 | `ingest` | parses XML by speech, embeds each passage, inserts into `passages` | one-shot |
 | `corrupt` | applies `corrupt.sql` to rewrite the `passages` table with character renames and Yoda-style line reorderings; runs after `ingest` (idempotent — no-op once corrupted) | one-shot |
-
-Each one-shot declares `depends_on: service_completed_successfully` on its predecessors, so a single `docker compose up` walks the chain deterministically.
+| `jorick` | serves the chat page on `localhost:8080`; retrieves passages, calls Claude with streaming, streams tokens back as SSE | long-running |
 
 ## Repository layout
 
@@ -72,7 +71,10 @@ Each one-shot declares `depends_on: service_completed_successfully` on its prede
 .
 ├── functions/
 │   ├── ingest-corpus.js      # TEI parser → embed → INSERT
-│   └── download-corpus.js    # DraCor corpus fetcher
+│   ├── download-corpus.js    # DraCor corpus fetcher
+│   └── jorick.js             # HTTP server + LCEL chain + Claude streaming
+├── public/
+│   └── index.html            # vanilla HTML+JS chat page
 ├── deployment/
 │   ├── compose.yml           # service stack
 │   ├── Dockerfile            # node:22-slim + Transformers.js + pre-cached BGE model
@@ -98,7 +100,7 @@ The same model will be used at query time (inside the MCP server, when that land
 
 ## Verifying RAG is actually grounding answers
 
-A built-in smoke test, applied automatically as part of `compose up`: after ingest finishes, the `corrupt` service rewrites the `passages` table with character renames and Yoda-style line reorderings. Once Jorick is online, ask it about things that are famous from Shakespeare's training data. If Jorick answers from the corrupted corpus, retrieval is doing real work; if it answers with canonical Shakespeare, the model is leaning on training-data memory and RAG is broken (or being ignored).
+A built-in smoke test, applied automatically as part of `compose up`: after ingest finishes, the `corrupt` service rewrites the `passages` table with character renames and Yoda-style line reorderings. Once Jorick is online, open `http://localhost:8080` and ask it about things that are famous from Shakespeare's training data. If Jorick answers from the corrupted corpus, retrieval is doing real work; if it answers with canonical Shakespeare, the model is leaning on training-data memory and RAG is broken (or being ignored).
 
 The rename list (in [`notes/braindump.md`](notes/braindump.md), section *On how to know this worked*) is structured so each character pair has *one renamed* and *one left as-is* — so queries that name an unrenamed character naturally pull in passages mentioning the renamed counterpart:
 
