@@ -12,10 +12,11 @@ shift || true
 case "$cmd" in
 
   up)
-    # Fast path: bring jorick back up without re-triggering migrate / download /
-    # ingest / corrupt. Pass --build after code changes:  ./jorick up --build
+    # Fast path: bring jorick + mcp-search back up without re-triggering
+    # migrate / download / ingest / corrupt. Pass --build after code changes:
+    #   ./jorick up --build
     $DC up -d postgres
-    $DC up --no-deps "$@" jorick
+    $DC up --no-deps "$@" mcp-search jorick
     ;;
 
   reset)
@@ -27,8 +28,9 @@ case "$cmd" in
     ;;
 
   build)
-    # Rebuild jorick's image without recreating containers or running deps.
-    $DC build jorick
+    # Rebuild the shared app image (jorick + mcp-search) without recreating
+    # containers or running deps.
+    $DC build jorick mcp-search
     ;;
 
   restart)

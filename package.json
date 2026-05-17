@@ -12,7 +12,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
     "@huggingface/transformers": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@xmldom/xmldom": "^0.8.10",
+    "zod": "^4.4.3",
     "pg": "^8.13.0",
     "pgvector": "^0.2.0",
     "xpath": "^0.0.34"

@@ -80,16 +80,28 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      mcp-search:
+        condition: service_started
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      MCP_URL: http://mcp-search:9000/sse
+      EXO: ${EXO:-jorick}
+    volumes:
+      - ../exo:/app/exo:ro
+    restart: unless-stopped
+
+  mcp-search:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    command: ["node", "mcp-search.js"]
+    depends_on:
       postgres:
         condition: service_healthy
       corrupt:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      EXO: ${EXO:-jorick}
-    volumes:
-      - ../exo:/app/exo:ro
     restart: unless-stopped
 
   corrupt:

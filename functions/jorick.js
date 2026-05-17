@@ -1,41 +1,41 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import pg from 'pg';
-import pgvector from 'pgvector';
-import { pipeline, env } from '@huggingface/transformers';
 import Anthropic from '@anthropic-ai/sdk';
-
-env.cacheDir = '/app/.cache';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
 const PORT = Number(process.env.PORT) || 8080;
+const MCP_URL = process.env.MCP_URL || 'http://mcp-search:9000/sse';
 const EXO_NAME = process.env.EXO || 'jorick';
 const exo = JSON.parse(await readFile(`./exo/${EXO_NAME}.json`, 'utf8'));
 
-// BGE-v1.5 requires this prefix on query embeddings (no prefix on documents).
-const QUERY_PREFIX = 'Represent this sentence for searching relevant passages: ';
-
-const extractor = await pipeline('feature-extraction', 'Xenova/bge-large-en-v1.5');
-
-const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
-await db.connect();
-
 const anthropic = new Anthropic();
 
-async function searchPassages(query, k = exo.topK) {
-  const output = await extractor([QUERY_PREFIX + query], {
-    pooling: 'mean',
-    normalize: true,
-  });
-  const vec = output.tolist()[0];
+const mcp = await connectWithRetry(MCP_URL);
 
-  const { rows } = await db.query(
-    `SELECT play, act, scene, speaker, text
-       FROM passages
-   ORDER BY embedding <=> $1
-      LIMIT $2`,
-    [pgvector.toSql(vec), k],
-  );
-  return rows;
+async function connectWithRetry(url) {
+  const deadline = Date.now() + 30_000;
+  for (let attempt = 1; ; attempt++) {
+    const client = new Client({ name: 'jorick', version: '0.1.0' });
+    try {
+      await client.connect(new SSEClientTransport(new URL(url)));
+      console.log(`mcp client connected to ${url}`);
+      return client;
+    } catch (err) {
+      try { await client.close(); } catch {}
+      if (Date.now() > deadline) throw err;
+      console.log(`mcp connect attempt ${attempt} failed (${err.message}); retrying...`);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+}
+
+async function searchPassages(query, k = exo.topK) {
+  const result = await mcp.callTool({
+    name: 'search_passages',
+    arguments: { query, k },
+  });
+  return JSON.parse(result.content[0].text);
 }
 
 function formatPassages(passages) {
