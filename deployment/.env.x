@@ -18,14 +18,22 @@ DATABASE_URL=postgresql://jorick:jorick@localhost:5433/jorick
 ANTHROPIC_API_KEY=
 
 # --- MCP server -------------------------------------------------------------
-# Empty in v1 (inline retrieval). Set when the MCP server lands.
-MCP_URL=
+# In-compose URL. Leave as default unless pointing Jorick at an external MCP.
+MCP_URL=http://mcp-search:9000/sse
+
+# --- Engine -----------------------------------------------------------------
+# Which /ask backend to use: `agent-sdk` (Claude Agent SDK + mcpServers) or
+# `anthropic` (direct Anthropic SDK with hand-rolled MCP client call).
+ENGINE=agent-sdk
 
 # --- Langfuse (self-hosted, v3) ---------------------------------------------
-# Jorick → Langfuse traces. These keys are auto-provisioned by LANGFUSE_INIT_*
-# below on first boot of `langfuse-web`, so Jorick can read them directly.
+# Jorick → Langfuse traces. These keys come from the Langfuse UI on first boot
+# (org → project → API keys).
 LANGFUSE_PUBLIC_KEY=pk-lf-local-dev
 LANGFUSE_SECRET_KEY=sk-lf-local-dev
+# Reached from inside the jorick container via the shared `jorick-langfuse`
+# external docker network (declared in compose.yml). Service name = hostname.
+LANGFUSE_BASE_URL=http://langfuse-web:3000
 
 # Cryptographic material. Generate once and keep stable across restarts.
 #   openssl rand -hex 32          → LANGFUSE_SALT (32+ hex)

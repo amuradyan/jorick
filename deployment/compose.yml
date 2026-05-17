@@ -84,9 +84,15 @@ services:
         condition: service_started
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      MCP_URL: http://mcp-search:9000/sse
+      MCP_URL: ${MCP_URL:-http://mcp-search:9000/sse}
       EXO: ${EXO:-jorick}
       ENGINE: ${ENGINE:-agent-sdk}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL}
+    networks:
+      - default
+      - jorick-langfuse
     volumes:
       - ../exo:/app/exo:ro
     restart: unless-stopped
@@ -132,3 +138,7 @@ services:
 
 volumes:
   pgdata:
+
+networks:
+  jorick-langfuse:
+    external: true
