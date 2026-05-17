@@ -137,3 +137,9 @@ The langchain/anthropic api did not play well with params and Opus 4.7 so we dit
 Jorick works overall. In sime cases its' training data shows through but nothing that cant be fixed with prompt engineering. Sometimes we are unable to fetch the proper passage from the texts.
 
 I recon we should regard the corpus augmentation as a thing of its own.
+
+## On gathering intel
+
+I am thinking we need a testing data loop. We figure out a few questions, ask them and document the answers. Then we can iterate on prompt engineering and corpus augmentation with more confidence.
+
+To test out several varieties of prompts, I am thinking we can export the system and human prompt into configs and refer to them code as different _actors_.
