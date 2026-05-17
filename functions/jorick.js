@@ -8,7 +8,7 @@ import Anthropic from '@anthropic-ai/sdk';
 env.cacheDir = '/app/.cache';
 
 const PORT = Number(process.env.PORT) || 8080;
-const TOP_K = 6;
+const TOP_K = 3;
 
 // BGE-v1.5 requires this prefix on query embeddings (no prefix on documents).
 const QUERY_PREFIX = 'Represent this sentence for searching relevant passages: ';
