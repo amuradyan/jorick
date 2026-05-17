@@ -3,10 +3,7 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import pgvector from 'pgvector';
 import { pipeline, env } from '@huggingface/transformers';
-import { ChatAnthropic } from '@langchain/anthropic';
-import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { StringOutputParser } from '@langchain/core/output_parsers';
-import { RunnableSequence } from '@langchain/core/runnables';
+import Anthropic from '@anthropic-ai/sdk';
 
 env.cacheDir = '/app/.cache';
 
@@ -16,26 +13,18 @@ const TOP_K = 6;
 // BGE-v1.5 requires this prefix on query embeddings (no prefix on documents).
 const QUERY_PREFIX = 'Represent this sentence for searching relevant passages: ';
 
+const SYSTEM_PROMPT =
+  'You are Jorick, a Shakespeare scholar speaking in modern English. ' +
+  'Answer using ONLY the provided passages. Cite as (Play Act.Scene). ' +
+  'If the passages do not contain enough information, say so plainly — ' +
+  'do not invent or use outside knowledge of Shakespeare and the context.';
+
 const extractor = await pipeline('feature-extraction', 'Xenova/bge-large-en-v1.5');
 
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
 
-const llm = new ChatAnthropic({
-  model: 'claude-opus-4-7',
-  maxTokens: 1024,
-  streaming: true,
-});
-
-const prompt = ChatPromptTemplate.fromMessages([
-  ['system',
-    'You are Jorick, a Shakespeare scholar speaking in modern English. ' +
-    'Answer using ONLY the provided passages. Cite as (Play Act.Scene). ' +
-    'If the passages do not contain enough information, say so plainly — ' +
-    'do not invent or use outside knowledge of Shakespeare and the context.'],
-  ['human',
-    'Passages:\n{passages}\n\nQuestion: {question}'],
-]);
+const anthropic = new Anthropic();
 
 async function searchPassages(query, k = TOP_K) {
   const output = await extractor([QUERY_PREFIX + query], {
@@ -61,16 +50,6 @@ function formatPassages(passages) {
       : `[${p.play} ${p.act}.${p.scene}] ${p.text}`)
     .join('\n\n');
 }
-
-const chain = RunnableSequence.from([
-  async ({ question }) => ({
-    question,
-    passages: formatPassages(await searchPassages(question)),
-  }),
-  prompt,
-  llm,
-  new StringOutputParser(),
-]);
 
 async function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -102,13 +81,23 @@ const server = http.createServer(async (req, res) => {
         'connection': 'keep-alive',
       });
 
-      // Emitted upfront so the panel can render before tokens arrive.
-      // The chain refetches internally — LCEL doesn't expose intermediate values.
       const passages = await searchPassages(question);
       res.write(`event: passages\ndata: ${JSON.stringify(passages)}\n\n`);
 
-      for await (const chunk of await chain.stream({ question })) {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      const stream = anthropic.messages.stream({
+        model: 'claude-opus-4-7',
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{
+          role: 'user',
+          content: `Passages:\n${formatPassages(passages)}\n\nQuestion: ${question}`,
+        }],
+      });
+
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          res.write(`data: ${JSON.stringify(event.delta.text)}\n\n`);
+        }
       }
 
       res.write(`event: done\ndata: {}\n\n`);

@@ -127,3 +127,7 @@ We might want to change a few things in Sheakspeares' works - important and well
 ## On proper naming
 
 Yorick is now Jorick /ˈʒɔːrɪk - Jean\Jacques-style/.
+
+## On langchain
+
+The langchain/anthropic api did not play well with params so we ditched it in favor of anthropic-ai api directly. No langchain in Jorick atm.
