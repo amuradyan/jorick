@@ -64,7 +64,7 @@ After the initial setup, use `./jorick` for day-to-day. It wraps `docker compose
 
 `./jorick help` prints the full list.
 
-Switch engines via env: `ENGINE=anthropic ./jorick up` runs the simpler MCP-client + Anthropic-SDK path; default is `agent-sdk` (Claude Agent SDK with MCP via `mcpServers`).
+Switch engines via env. Default is `agent-sdk` (Claude Agent SDK with MCP via `mcpServers`). Other options: `ENGINE=anthropic ./jorick up` (simpler MCP-client + Anthropic-SDK path) and `ENGINE=deep ./jorick up` (LangChain's DeepAgents on LangGraph, MCP via `@langchain/mcp-adapters`).
 
 For verbose OTel/span-export logs from inside Jorick's container, set `OTEL_DEBUG=1` in `.env`.
 
@@ -101,7 +101,8 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 │       ├── observability.js  # @opentelemetry/sdk-node + LangfuseSpanProcessor; graceful no-op if creds missing
 │       └── engines/
 │           ├── agent-sdk.js  # Claude Agent SDK loop (query() with mcpServers)
-│           └── anthropic.js  # MCP client + Anthropic SDK (one-shot retrieve-then-prompt)
+│           ├── anthropic.js  # MCP client + Anthropic SDK (one-shot retrieve-then-prompt)
+│           └── deep.js       # LangChain DeepAgents on LangGraph (@langchain/mcp-adapters)
 ├── mcp/
 │   └── search.js             # MCP server: BGE embedder + pgvector + search_passages tool
 ├── public/

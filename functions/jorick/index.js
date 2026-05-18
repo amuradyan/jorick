@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { startActiveObservation } from '@langfuse/tracing';
 import * as anthropic from './engines/anthropic.js';
 import * as agentSdk from './engines/agent-sdk.js';
+import * as deep from './engines/deep.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 const MCP_URL = process.env.MCP_URL || 'http://mcp-search:9000/sse';
@@ -12,7 +13,7 @@ const ENGINE = process.env.ENGINE || 'agent-sdk';
 
 const exo = JSON.parse(await readFile(`./exo/${EXO_NAME}.json`, 'utf8'));
 
-const engines = { 'anthropic': anthropic, 'agent-sdk': agentSdk };
+const engines = { 'anthropic': anthropic, 'agent-sdk': agentSdk, 'deep': deep };
 if (!engines[ENGINE]) {
   throw new Error(`ENGINE must be one of: ${Object.keys(engines).join(', ')} (got: ${ENGINE})`);
 }
