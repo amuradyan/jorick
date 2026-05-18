@@ -119,6 +119,9 @@ services:
       timeout: 2s
       retries: 30
       start_period: 5s
+    networks:
+      - default
+      - jorick-langfuse
     volumes:
       - bge_cache:/app/.cache
     restart: unless-stopped
