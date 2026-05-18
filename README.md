@@ -14,7 +14,7 @@ A Q&A agent built mostly around Shakespeares' original works with a few alterati
 | Jorick agent (Claude Agent SDK + Anthropic SDK, engine-switchable via `ENGINE` env) | ✅ working |
 | Web UI (vanilla HTML+JS) | ✅ working |
 | MCP retrieval boundary | ✅ working |
-| Langfuse self-hosted observability | ⏳ planned |
+| Langfuse self-hosted observability | ✅ working (OTel-based, separate compose project; see [Observability](#observability)) |
 | Kubernetes deployment (k3d) | ⏳ deferred |
 
 /messy/ Architecture, decisions, and remaining work and notes for now live in [`notes/braindump.md`](notes/braindump.md).
@@ -32,6 +32,8 @@ cd deployment
 cp .env.x .env                # then edit .env to set ANTHROPIC_API_KEY
 docker compose up             # downloads corpus → applies schema → embeds → corrupts → starts Jorick on :8080
 ```
+
+Compose creates a `jorick-langfuse` docker network on first `up`. The Langfuse stack (optional — see [Observability](#observability)) attaches to that same network as external. Langfuse credentials are also optional: Jorick degrades gracefully when they're absent.
 
 On my  13th Gen Intel i9-13980HX (32) @ 5.400GHz with more than enough RAM the first run takes ~5 minutes (image build with pre-cached embedding model) plus ~25 minutes (CPU embedding of 5 plays) plus ~1 minute (corruption SQL). Subsequent `compose up`s are fast — services are idempotent.
 
@@ -64,6 +66,8 @@ After the initial setup, use `./jorick` for day-to-day. It wraps `docker compose
 
 Switch engines via env: `ENGINE=anthropic ./jorick up` runs the simpler MCP-client + Anthropic-SDK path; default is `agent-sdk` (Claude Agent SDK with MCP via `mcpServers`).
 
+For verbose OTel/span-export logs from inside Jorick's container, set `OTEL_DEBUG=1` in `.env`.
+
 ## Services
 
 When we do `docker compose up`, these services run:
@@ -94,6 +98,7 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 │   ├── download-corpus.js    # DraCor corpus fetcher
 │   └── jorick/
 │       ├── index.js          # HTTP server + SSE framing + engine dispatch (ENGINE env)
+│       ├── observability.js  # @opentelemetry/sdk-node + LangfuseSpanProcessor; graceful no-op if creds missing
 │       └── engines/
 │           ├── agent-sdk.js  # Claude Agent SDK loop (query() with mcpServers)
 │           └── anthropic.js  # MCP client + Anthropic SDK (one-shot retrieve-then-prompt)
@@ -124,6 +129,35 @@ The same model is used at query time inside the `mcp-search` service, so ingest-
 
 **!** Changing the model means re-embedding the entire corpus.
 
+## Observability
+
+Each `POST /ask` becomes one Langfuse trace with a child `generation` capturing the LLM call (model, input, output, token usage). The retrieved passages land as metadata on the trace; the engine name (`agent-sdk` or `anthropic`) lands too.
+
+Langfuse runs as a **separate docker-compose project** ([self-hosting docs](https://langfuse.com/self-hosting/docker-compose)) and Jorick reaches it through a shared `jorick-langfuse` docker network — same network created in the Quick start.
+
+Set the project-scoped keys in `deployment/.env`:
+
+```bash
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=http://langfuse-web:3000   # service name on the shared network
+```
+
+If any of the three are missing, Jorick logs `langfuse: missing credentials, tracing disabled` at boot and continues normally — `/ask` keeps working without traces.
+
+To attach the Langfuse stack to the same network, add to its `docker-compose.yml`:
+
+```yaml
+services:
+  langfuse-web:
+    networks: [default, jorick-langfuse]
+networks:
+  jorick-langfuse:
+    external: true
+```
+
+Then start the full Langfuse stack (`langfuse-web` + `langfuse-worker` + the three datastores). The **worker** is required for traces to land in ClickHouse and become visible in the UI — without it, spans accumulate in Redis and the UI stays empty.
+
 ## Verifying RAG is actually grounding answers
 
 A built-in smoke test, applied automatically as part of `compose up`: after ingest finishes, the `corrupt` service rewrites the `passages` table with character renames and Yoda-style line reorderings. Once Jorick is online, open `http://localhost:8080` and ask it about things that are famous from Shakespeare's training data. If Jorick answers from the corrupted corpus, retrieval is doing real work; if it answers with canonical Shakespeare, the model is leaning on training-data memory and RAG is broken (or being ignored).
@@ -137,3 +171,26 @@ The rename list (in [`notes/braindump.md`](notes/braindump.md), section *On how 
 | *Who is Macbeth's wife?* | **Mrs M** | Lady Macbeth |
 | *Who advises young Hamlet?* | **Telman** | Polonius |
 | *Who is Othello's ensign?* | **Jafar** | Iago |
+
+## Troubleshooting
+
+**Containers in a weird state, data fine.** `./jorick up` rebuilds the runtime side without re-running the ingest chain. If that's not enough:
+
+```bash
+docker compose -f deployment/compose.yml down
+./jorick up
+```
+
+Volumes survive — embeddings, Langfuse data, all intact.
+
+**Stale `jorick-langfuse` network** (e.g. compose complains the network exists "but was not created by compose" — happens once when upgrading from the previous external-network setup):
+
+```bash
+docker compose -f deployment/compose.yml down
+docker compose -f /path/to/langfuse/docker-compose.yml down
+docker network rm jorick-langfuse
+./jorick up
+cd /path/to/langfuse && docker compose up -d
+```
+
+**Full reset, embeddings included.** `./jorick reset` wipes `pgdata` and re-runs the entire ingest chain. ~25 min to ~2 hours of CPU depending on contention. Use only when you actually want fresh data.

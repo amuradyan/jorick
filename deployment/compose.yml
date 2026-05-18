@@ -141,4 +141,4 @@ volumes:
 
 networks:
   jorick-langfuse:
-    external: true
+    name: jorick-langfuse
