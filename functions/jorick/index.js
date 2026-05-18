@@ -1,5 +1,7 @@
+import './observability.js';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { startActiveObservation } from '@langfuse/tracing';
 import * as anthropic from './engines/anthropic.js';
 import * as agentSdk from './engines/agent-sdk.js';
 
@@ -26,6 +28,42 @@ async function readBody(req) {
   });
 }
 
+async function handleAsk(question, res) {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    'connection': 'keep-alive',
+  });
+
+  await startActiveObservation('ask', async (trace) => {
+    trace.update({ input: question, metadata: { engine: ENGINE, exo: EXO_NAME } });
+
+    let collected = '';
+    let passages = null;
+
+    try {
+      for await (const event of run({ question, exo })) {
+        if (event.type === 'passages') {
+          passages = event.passages;
+          res.write(`event: passages\ndata: ${JSON.stringify(event.passages)}\n\n`);
+        } else if (event.type === 'text') {
+          collected += event.text;
+          res.write(`data: ${JSON.stringify(event.text)}\n\n`);
+        } else if (event.type === 'error') {
+          res.write(`event: error\ndata: ${JSON.stringify({ error: event.error, detail: event.detail })}\n\n`);
+        }
+      }
+      trace.update({ output: collected, metadata: { engine: ENGINE, exo: EXO_NAME, passages } });
+    } catch (err) {
+      trace.update({ output: collected, metadata: { engine: ENGINE, exo: EXO_NAME, passages, error: String(err.message || err) } });
+      throw err;
+    }
+  });
+
+  res.write(`event: done\ndata: {}\n\n`);
+  res.end();
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/') {
@@ -40,25 +78,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(400, { 'content-type': 'application/json' });
         return res.end(JSON.stringify({ error: 'Unable to comprehend the question' }));
       }
-
-      res.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        'connection': 'keep-alive',
-      });
-
-      for await (const event of run({ question, exo })) {
-        if (event.type === 'passages') {
-          res.write(`event: passages\ndata: ${JSON.stringify(event.passages)}\n\n`);
-        } else if (event.type === 'text') {
-          res.write(`data: ${JSON.stringify(event.text)}\n\n`);
-        } else if (event.type === 'error') {
-          res.write(`event: error\ndata: ${JSON.stringify({ error: event.error, detail: event.detail })}\n\n`);
-        }
-      }
-
-      res.write(`event: done\ndata: {}\n\n`);
-      return res.end();
+      return handleAsk(question, res);
     }
 
     res.writeHead(404, { 'content-type': 'text/plain' });

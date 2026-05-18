@@ -1,4 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { startObservation } from '@langfuse/tracing';
 
 function buildSystemPrompt(exo) {
   return `${exo.systemPrompt}
@@ -22,11 +23,12 @@ function extractPassages(userMessage) {
 
 export async function init({ mcpUrl }) {
   return async function* run({ question, exo }) {
+    const systemPrompt = buildSystemPrompt(exo);
     const stream = query({
       prompt: question,
       options: {
         model: 'claude-opus-4-7',
-        systemPrompt: buildSystemPrompt(exo),
+        systemPrompt,
         mcpServers: { search: { type: 'sse', url: mcpUrl } },
         allowedTools: ['mcp__search__*'],
         includePartialMessages: true,
@@ -35,40 +37,61 @@ export async function init({ mcpUrl }) {
       },
     });
 
-    let passagesEmitted = false;
+    const gen = startObservation('claude-agent-sdk.query', {
+      model: 'claude-opus-4-7',
+      input: { systemPrompt, prompt: question },
+    }, { asType: 'generation' });
 
-    for await (const m of stream) {
-      if (m.type === 'system' && m.subtype === 'init') {
-        const failed = (m.mcp_servers || []).filter(s => s.status !== 'connected');
-        if (failed.length) {
-          yield { type: 'error', error: 'mcp server connection failed', detail: failed };
+    let passagesEmitted = false;
+    let collected = '';
+
+    try {
+      for await (const m of stream) {
+        if (m.type === 'system' && m.subtype === 'init') {
+          const failed = (m.mcp_servers || []).filter(s => s.status !== 'connected');
+          if (failed.length) {
+            yield { type: 'error', error: 'mcp server connection failed', detail: failed };
+            return;
+          }
+          continue;
+        }
+
+        if (m.type === 'user' && !passagesEmitted) {
+          const passages = extractPassages(m);
+          if (passages) {
+            yield { type: 'passages', passages };
+            passagesEmitted = true;
+          }
+          continue;
+        }
+
+        if (m.type === 'stream_event'
+            && m.event?.type === 'content_block_delta'
+            && m.event.delta?.type === 'text_delta') {
+          collected += m.event.delta.text;
+          yield { type: 'text', text: m.event.delta.text };
+          continue;
+        }
+
+        if (m.type === 'result') {
+          const u = m.usage || {};
+          gen.update({
+            output: collected,
+            metadata: { num_turns: m.num_turns, total_cost_usd: m.total_cost_usd },
+            usage: {
+              inputTokens: u.input_tokens,
+              outputTokens: u.output_tokens,
+              totalTokens: (u.input_tokens || 0) + (u.output_tokens || 0),
+            },
+          });
+          if (m.subtype !== 'success') {
+            yield { type: 'error', error: m.subtype, detail: m.errors };
+          }
           return;
         }
-        continue;
       }
-
-      if (m.type === 'user' && !passagesEmitted) {
-        const passages = extractPassages(m);
-        if (passages) {
-          yield { type: 'passages', passages };
-          passagesEmitted = true;
-        }
-        continue;
-      }
-
-      if (m.type === 'stream_event'
-          && m.event?.type === 'content_block_delta'
-          && m.event.delta?.type === 'text_delta') {
-        yield { type: 'text', text: m.event.delta.text };
-        continue;
-      }
-
-      if (m.type === 'result') {
-        if (m.subtype !== 'success') {
-          yield { type: 'error', error: m.subtype, detail: m.errors };
-        }
-        return;
-      }
+    } finally {
+      gen.end();
     }
   };
 }

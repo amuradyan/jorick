@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { startObservation } from '@langfuse/tracing';
 
 const anthropic = new Anthropic();
 
@@ -40,20 +41,45 @@ export async function init({ mcpUrl }) {
     const passages = JSON.parse(result.content[0].text);
     yield { type: 'passages', passages };
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-7',
-      max_tokens: 1024,
-      system: exo.systemPrompt,
-      messages: [{
-        role: 'user',
-        content: `Passages:\n${formatPassages(passages)}\n\nQuestion: ${question}`,
-      }],
-    });
+    const messages = [{
+      role: 'user',
+      content: `Passages:\n${formatPassages(passages)}\n\nQuestion: ${question}`,
+    }];
 
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        yield { type: 'text', text: event.delta.text };
+    const gen = startObservation('anthropic.messages', {
+      model: 'claude-opus-4-7',
+      modelParameters: { max_tokens: 1024 },
+      input: { system: exo.systemPrompt, messages },
+    }, { asType: 'generation' });
+
+    let collected = '';
+    try {
+      const stream = anthropic.messages.stream({
+        model: 'claude-opus-4-7',
+        max_tokens: 1024,
+        system: exo.systemPrompt,
+        messages,
+      });
+
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          collected += event.delta.text;
+          yield { type: 'text', text: event.delta.text };
+        }
       }
+
+      const final = await stream.finalMessage();
+      const u = final.usage || {};
+      gen.update({
+        output: collected,
+        usage: {
+          inputTokens: u.input_tokens,
+          outputTokens: u.output_tokens,
+          totalTokens: (u.input_tokens || 0) + (u.output_tokens || 0),
+        },
+      });
+    } finally {
+      gen.end();
     }
   };
 }
