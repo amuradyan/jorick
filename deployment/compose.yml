@@ -81,7 +81,7 @@ services:
       - "8080:8080"
     depends_on:
       mcp-search:
-        condition: service_started
+        condition: service_healthy
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       MCP_URL: ${MCP_URL:-http://mcp-search:9000/sse}
@@ -109,6 +109,18 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NODE_OPTIONS: --dns-result-order=ipv4first
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').createConnection({host:'localhost',port:9000}).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    volumes:
+      - bge_cache:/app/.cache
     restart: unless-stopped
 
   corrupt:
@@ -138,6 +150,7 @@ services:
 
 volumes:
   pgdata:
+  bge_cache:
 
 networks:
   jorick-langfuse:

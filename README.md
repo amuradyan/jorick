@@ -35,7 +35,7 @@ docker compose up             # downloads corpus → applies schema → embeds �
 
 Compose creates a `jorick-langfuse` docker network on first `up`. The Langfuse stack (optional — see [Observability](#observability)) attaches to that same network as external. Langfuse credentials are also optional: Jorick degrades gracefully when they're absent.
 
-On my  13th Gen Intel i9-13980HX (32) @ 5.400GHz with more than enough RAM the first run takes ~5 minutes (image build with pre-cached embedding model) plus ~25 minutes (CPU embedding of 5 plays) plus ~1 minute (corruption SQL). Subsequent `compose up`s are fast — services are idempotent.
+On my  13th Gen Intel i9-13980HX (32) @ 5.400GHz with more than enough RAM the first run takes ~5 minutes (image build, plus the BGE pre-cache if HuggingFace is reachable from the build sandbox) plus ~25 minutes (CPU embedding of 5 plays) plus ~1 minute (corruption SQL). If pre-cache is skipped, `mcp-search` downloads the ~1.3 GB model at first `/ask` into the persisted `bge_cache` volume; subsequent `compose up`s are fast either way.
 
 Confirm it worked:
 
@@ -109,7 +109,7 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 │   └── index.html            # vanilla HTML+JS chat page
 ├── deployment/
 │   ├── compose.yml           # service stack
-│   ├── Dockerfile            # node:22-slim + Transformers.js + pre-cached BGE model
+│   ├── Dockerfile            # node:22-slim + Transformers.js + best-effort BGE pre-cache
 │   ├── .env.x                # env template (copy to deployment/.env)
 │   ├── schema.sql            # passages table + HNSW vector index
 │   └── corrupt.sql           # RAG-validation corruption applied after ingest
@@ -124,7 +124,7 @@ Folger Digital Texts TEI XML via the [dracor-org/shakedracor](https://github.com
 
 ## Embedding model
 
-`Xenova/bge-large-en-v1.5` (1024-d, ONNX build of BAAI's BGE-large). Loaded via `@huggingface/transformers` in Node. Pre-cached into the Docker image during build so first runs don't redownload ~1.3 GB.
+`Xenova/bge-large-en-v1.5` (1024-d, ONNX build of BAAI's BGE-large). Loaded via `@huggingface/transformers` in Node. The Dockerfile attempts to pre-cache the model into the image during build, but the step is best-effort — skipped when HuggingFace is unreachable from the build sandbox. Either way the model lives in the `bge_cache` named volume mounted on `mcp-search`, so it survives container recreates and only downloads once.
 
 The same model is used at query time inside the `mcp-search` service, so ingest-side and query-side vectors live in the same space.
 
