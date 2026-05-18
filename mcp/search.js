@@ -35,22 +35,24 @@ async function searchPassages(query, k) {
   return rows;
 }
 
-const mcp = new McpServer({ name: 'jorick-search', version: '0.1.0' });
-
-mcp.registerTool(
-  'search_passages',
-  {
-    description: 'Vector-search Shakespeare passages by natural-language query. Returns the top-k passages ordered by cosine distance to the query embedding.',
-    inputSchema: {
-      query: z.string().describe('Natural-language search query.'),
-      k: z.number().int().min(1).default(3).describe('How many passages to return.'),
+function makeServer() {
+  const mcp = new McpServer({ name: 'jorick-search', version: '0.1.0' });
+  mcp.registerTool(
+    'search_passages',
+    {
+      description: 'Vector-search Shakespeare passages by natural-language query. Returns the top-k passages ordered by cosine distance to the query embedding.',
+      inputSchema: {
+        query: z.string().describe('Natural-language search query.'),
+        k: z.number().int().min(1).default(3).describe('How many passages to return.'),
+      },
     },
-  },
-  async ({ query, k }) => {
-    const passages = await searchPassages(query, k);
-    return { content: [{ type: 'text', text: JSON.stringify(passages) }] };
-  },
-);
+    async ({ query, k }) => {
+      const passages = await searchPassages(query, k);
+      return { content: [{ type: 'text', text: JSON.stringify(passages) }] };
+    },
+  );
+  return mcp;
+}
 
 const transports = new Map();
 
@@ -61,7 +63,7 @@ const server = http.createServer(async (req, res) => {
       const transport = new SSEServerTransport('/messages', res);
       transports.set(transport.sessionId, transport);
       transport.onclose = () => transports.delete(transport.sessionId);
-      await mcp.connect(transport);
+      await makeServer().connect(transport);
       return;
     }
 
