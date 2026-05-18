@@ -15,6 +15,7 @@ A Q&A agent built mostly around Shakespeares' original works with a few alterati
 | Web UI (vanilla HTML+JS) | ✅ working |
 | MCP retrieval boundary | ✅ working |
 | Langfuse self-hosted observability | ✅ working (OTel-based, separate compose project; see [Observability](#observability)) |
+| Jorick in n8n (second implementation, parallel flavor) | 🧱 scaffolded (workflow JSON pending; see [`n8n/`](n8n/)) |
 | Kubernetes deployment (k3d) | ⏳ deferred |
 
 /messy/ Architecture, decisions, and remaining work and notes for now live in [`notes/braindump.md`](notes/braindump.md).
@@ -105,6 +106,10 @@ postgres --[healthy]--|                |--[both exit 0]--> ingest --[exit 0]--> 
 │           └── deep.js       # LangChain DeepAgents on LangGraph (@langchain/mcp-adapters)
 ├── mcp/
 │   └── search.js             # MCP server: BGE embedder + pgvector + search_passages tool
+├── n8n/                      # Jorick-in-n8n: workflow JSON + import notes (platform compose lives in ~/devel/n8n/)
+│   ├── README.md
+│   ├── .env.x
+│   └── jorick-workflow.json  # exported from n8n's UI; re-export on every change
 ├── public/
 │   └── index.html            # vanilla HTML+JS chat page
 ├── deployment/
