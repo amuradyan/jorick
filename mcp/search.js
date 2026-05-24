@@ -4,6 +4,8 @@ import pgvector from 'pgvector';
 import { pipeline, env } from '@huggingface/transformers';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 env.cacheDir = '/app/.cache';
@@ -55,6 +57,7 @@ function makeServer() {
 }
 
 const transports = new Map();
+const streamableTransports = new Map();
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -77,8 +80,25 @@ const server = http.createServer(async (req, res) => {
       return transport.handlePostMessage(req, res);
     }
 
+    if (url.pathname === '/mcp') {
+      const existingId = req.headers['mcp-session-id'];
+      let transport = typeof existingId === 'string' && streamableTransports.get(existingId);
+      if (!transport) {
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (id) => streamableTransports.set(id, transport),
+          onsessionclosed: (id) => streamableTransports.delete(id),
+        });
+        transport.onclose = () => {
+          if (transport.sessionId) streamableTransports.delete(transport.sessionId);
+        };
+        await makeServer().connect(transport);
+      }
+      return transport.handleRequest(req, res);
+    }
+
     res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end('mcp-search endpoints: GET /sse, POST /messages');
+    res.end('mcp-search endpoints: GET /sse, POST /messages, POST /mcp');
   } catch (err) {
     console.error('mcp-search request error:', err);
     if (!res.headersSent) {
@@ -90,4 +110,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`mcp-search on ${PORT}`));
+server.listen(PORT, () => console.log(`mcp-search on ${PORT} (SSE: /sse + /messages, Streamable HTTP: /mcp)`));
