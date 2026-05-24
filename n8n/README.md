@@ -14,6 +14,19 @@ n8n attaches to the existing `jorick-langfuse` docker network, so it can reach `
 
 Then open `http://localhost:5678` and create an admin account in the UI (first boot only; n8n stores it in its own DB).
 
+### Community node (required)
+
+The workflow uses the community node [`n8n-nodes-mcp`](https://github.com/nerding-io/n8n-nodes-mcp) instead of n8n's built-in MCP Client Tool — the built-in one has a known bug ([n8n-io/n8n#18938](https://github.com/n8n-io/n8n/issues/18938)) where its transport selector is ignored and SSE is always used, which fails against `mcp-search`'s deprecated SSE handler. The community node respects the HTTP Streamable transport choice and connects cleanly to `mcp-search:9000/mcp`.
+
+To allow n8n to load community nodes as agent tools, the n8n service needs:
+
+```yaml
+environment:
+  N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE: 'true'
+```
+
+(already set in `~/devel/n8n/docker-compose.yml`). Then install the package once via n8n's UI: Settings → Community Nodes → Install → `n8n-nodes-mcp`.
+
 ## Import the workflow
 
 In the n8n UI:

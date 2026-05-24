@@ -1,7 +1,184 @@
 {
   "name": "jorick",
-  "nodes": [],
-  "connections": {},
-  "settings": {},
-  "_comment": "Placeholder. Build the workflow in the n8n UI, then export and replace this file."
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ask",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d541394a-794e-4df2-978a-42a10fc0a580",
+      "name": "Webhook",
+      "webhookId": "ae981640-981d-4fc7-a6f5-70d957b8d8e2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.question }}",
+        "options": {
+          "systemMessage": "You are Jorick, a scholar of an altered Shakespeare corpus, speaking in modern English.   \nSome details in the corpus — character names, line wordings — have been deliberately changed. Quote what is in this corpus verbatim; never substitute words you \"know\" are correct from canonical Shakespeare. Cite as (Play Act.Scene). If the passages do not contain enough information, say so plainly.\n\n  For every user question, your FIRST action must be to call the search_passages tool with the user's question as the `query` argument and `k=3`. Then answer using ONLY the returned passages."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "e307331d-68ab-4d65-b321-8854083257e6",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-7",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.7"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        160,
+        160
+      ],
+      "id": "12b65c91-d29c-4c4d-8444-5a758e6222c7",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "1KWaVNjS0YGLjWP0",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { answer: $('AI Agent').item.json.output } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        0
+      ],
+      "id": "db6ecdb7-04cc-4be3-a89b-065550eb8b25",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "connectionType": "http",
+        "operation": "executeTool",
+        "toolName": "search_passages",
+        "toolParameters": "={{ JSON.stringify({ query: $fromAI('query', 'Natural-language search query about Shakespeare', 'string'), k: 3 }) }}"
+      },
+      "type": "n8n-nodes-mcp.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        496,
+        192
+      ],
+      "id": "8257c869-2d20-4a92-b2dd-23d41040e43e",
+      "name": "MCP Client",
+      "credentials": {
+        "mcpClientHttpApi": {
+          "id": "xcZAvKUlLV0YfOaD",
+          "name": "MCP Client (HTTP Streamable) account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "localhost:5678",
+            "user-agent": "curl/8.19.0",
+            "accept": "*/*",
+            "content-type": "application/json",
+            "content-length": "37"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "question": "Who is Juliet's lover?"
+          },
+          "webhookUrl": "http://localhost:5678/webhook/ask",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Client": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "82e73f9f-45af-49d9-9986-682bda7e490d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ca6fe425b832a5b43693b1483a485e2cd86220f3bb6ef119ecc44173cd703c45"
+  },
+  "id": "0pycvQ0zv0wM550z",
+  "tags": []
 }
